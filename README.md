@@ -8,8 +8,8 @@ A maintainable, scalable Playwright E2E suite targeting `https://www.saucedemo.c
 ## Setup Instructions
 ```bash
 
-# install Playwright browsers
-npm run install
+# install Playwright features
+npm install
 
 # run all tests (headless)
 npm test
