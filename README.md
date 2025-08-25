@@ -53,6 +53,7 @@ npm run test:report
 - **Problematic UI (`tests/problem-user-ui-issues.spec.ts`)**
   - Detects incorrect product images for `problem_user`
   - Approach documented below; spec implements a functional check and includes baseline snapshots for illustration
+  - (At first check, the baseline result should be an error, because the baseline images do not exist yet.)
 - **Performance glitches (`tests/performance-glitch-user.spec.ts`)**
   - Completes a core action (add to cart / navigate) as `performance_glitch_user`
   - Robust to lag via resilient waits (locator‑aware expectations), not brittle timeouts
