@@ -1,118 +1,108 @@
-## SauceDemo Playwright Tests
+# QA Test Task: Playwright for Sauce Labs Demo
 
-A Playwright + TypeScript test suite for SauceDemo covering auth, inventory sorting, end‑to‑end checkout, performance‑glitch handling, and problem_user visual issues.
+A maintainable, scalable Playwright E2E suite targeting `https://www.saucedemo.com`, designed with a five‑year maintenance horizon in mind. This repository demonstrates clean architecture (POM + fixtures + utils), robust assertions, and strategies for problematic UI and performance issues.
 
-## Prerequisites
-- Node.js 18+
-- npm 9+
+### Target application
+`https://www.saucedemo.com`
 
 ## Setup Instructions
-- Install dependencies and browsers:
 ```bash
-npm ci
-npx playwright install --with-deps
-```
-- Run the full test suite:
-```bash
-npm test
-```
-- Run a focused test:
-```bash
-npx playwright test -g "Problem User"
-```
-- Open the last HTML report:
-```bash
-npx playwright show-report
-```
 
-## Project structure
-```
-pages/
-  BasePage.ts
-  CartPage.ts
-  CheckoutPage.ts
-  CheckoutOverviewPage.ts
-  CheckoutCompletePage.ts
-  InventoryPage.ts
-  LoginPage.ts
-  ProductDetailPage.ts
-tests/
-  authentication.spec.ts
-  e2e-purchase-flow.spec.ts
-  inventory-sorting.spec.ts
-  performance-glitch-user.spec.ts
-  problem-user-ui-issues.spec.ts
-  utils/
-    priceCalculator.ts
-    testData.ts
-playwright.config.ts
-package.json
+# install Playwright browsers
+npm run install
+
+# run all tests (headless)
+npm test
+
+# headed / UI / debug / open last report
+npm run test:headed
+npm run test:ui
+npm run test:debug
+npm run test:report
 ```
 
 ## Project Architecture
-- Page Object Model (POM):
-  - `BasePage`: common navigation, `getByTestId`, and shared helpers.
-  - `LoginPage`, `InventoryPage`, `CartPage`, `CheckoutPage`, `CheckoutOverviewPage`, `CheckoutCompletePage`, `ProductDetailPage`: intent‑driven APIs to keep tests readable and resilient.
-- Fixtures:
-  - Custom fixtures provide pre‑authenticated pages for different user personas (e.g., `standard_user`, `problem_user`, `performance_glitch_user`).
-  - Isolation: user sessions can run in separate browser contexts (when fixtures enabled) to avoid cross‑pollution (useful for multi‑user visual comparisons).
-- Utilities:
-  - `tests/utils/priceCalculator.ts`: financial helpers (`calculateTotal`, `validateTotal`) for deterministic total validation in checkout.
-  - `tests/utils/testData.ts`: user credentials and sample checkout info.
-- Selectors:
-  - Prefer `data-test` attributes via `BasePage.getByTestId` for stability and readability.
+- `pages/`: Page Object Model classes encapsulating selectors and behaviors per page
+  - `LoginPage.ts`, `InventoryPage.ts`, `ProductDetailPage.ts`, `CartPage.ts`, `CheckoutPage.ts`, `CheckoutOverviewPage.ts`, `CheckoutCompletePage.ts`, `BasePage.ts`
+- `tests/`: Focused, readable spec files that orchestrate POMs and fixtures
+  - `authentication.spec.ts`, `inventory-sorting.spec.ts`, `e2e-purchase-flow.spec.ts`, `problem-user-ui-issues.spec.ts`, `performance-glitch-user.spec.ts`
+  - `fixtures/index.ts`: shared fixtures (e.g., logged‑in context/page) and test data wiring
+  - `utils/`: cross‑cutting helpers (e.g., `priceCalculator.ts`, `testData.ts`)
+- `playwright.config.ts`: base URL, retries/workers on CI, reporters (HTML/JSON/JUnit), artifact policy
+- `playwright-report/`, `test-results/`: reports and artifacts (traces, screenshots, videos, JSON, JUnit)
 
-Why this architecture:
-- Clear separation of concerns: test intent in specs; UI details in page objects.
-- Maintainability: selectors centralized; changes in UI don’t ripple through tests.
-- Reusability: personas via fixtures enable concise multi‑user scenarios.
+### Why this structure?
+- **POM**: Centralizes selectors and flows, reducing duplication and increasing change resilience.
+- **Fixtures**: Provide composable test state (e.g., logged‑in page) to keep specs concise and deterministic.
+- **Utils**: Isolate reusable, domain‑specific logic (e.g., calculating price totals) from UI concerns.
+- **Strict selectors**: Prefer `data-test` attributes for stability and intent clarity.
 
-## Requirements Mapping
-- Scenario 1: Authentication
-  - Successful login, locked-out user error, invalid password error: covered in `tests/authentication.spec.ts`.
-- Scenario 2: Inventory & Sorting
-  - Sort by price low→high and high→low; validated via `InventoryPage.assertProductsSorted...` in `tests/inventory-sorting.spec.ts`.
-- Scenario 3: End‑to‑End Purchase Flow
-  - From login to thank-you; total = subtotal + tax computed via `calculateTotal` and validated with tolerance in `tests/e2e-purchase-flow.spec.ts`.
-- Advanced 1: Problematic UI (problem_user)
-  - README documents ideal visual approach; test includes functional/visual checks in `tests/problem-user-ui-issues.spec.ts`.
-- Advanced 2: Performance Issues (performance_glitch_user)
-  - Core action add‑to‑cart validated without brittle sleeps in `tests/performance-glitch-user.spec.ts` using state‑based assertions and POM helpers.
-- Technical & Structural
-  - POM: yes; Fixtures: yes; Utils: yes; `data-test` selectors: yes.
+## Scenarios Covered
+### Part 1: Foundational
+- **Authentication (`tests/authentication.spec.ts`)**
+  - Successful login as `standard_user` asserts redirection to inventory
+  - Locked‑out `locked_out_user` asserts the specific error message
+  - Invalid password path asserts the appropriate error message
+- **Inventory & Sorting (`tests/inventory-sorting.spec.ts`)**
+  - Verifies sorting by "Price (low to high)" and "Price (high to low)"; asserts first item correctness
+- **Full E2E Purchase Flow (`tests/e2e-purchase-flow.spec.ts`)**
+  - Login → add items → cart → checkout → overview → complete
+  - Crucial assertion: uses `utils/priceCalculator.ts` to compute Item total + Tax and asserts match with displayed total
+
+### Part 2: Advanced
+- **Problematic UI (`tests/problem-user-ui-issues.spec.ts`)**
+  - Detects incorrect product images for `problem_user`
+  - Approach documented below; spec implements a functional check and includes baseline snapshots for illustration
+- **Performance glitches (`tests/performance-glitch-user.spec.ts`)**
+  - Completes a core action (add to cart / navigate) as `performance_glitch_user`
+  - Robust to lag via resilient waits (locator‑aware expectations), not brittle timeouts
 
 ## Strategic Decisions
-- Selector strategy:
-  - Prefer `data-test` via `getByTestId` for stable, reviewable locators.
-- Waiting strategy (handle lag):
-  - No hardcoded sleeps in tests. Use Playwright’s auto‑wait and state‑based assertions (e.g., Add → Remove button state, cart badge visibility). POM methods (`addProductToCartDirect`, `addProductToCartViaDetailPage`) encapsulate robustness.
-- Visual regression for `problem_user`:
-  - Baseline (standard_user) and comparison (problem_user) are split to avoid races and maintain clarity. Ensure consistent rendering (viewport/DPR, animations disabled). Visual snapshots require identical dimensions; either normalize element size in tests or compare page‑level clips.
-- Totals validation:
-  - Programmatic calculation with `priceCalculator` and tolerant validation (`validateTotal`) mirrors realistic money handling.
+### Data‑test selectors
+- All key elements are selected via `data-test` attributes to ensure stability against visual/DOM refactors.
 
-## Key tests
-- Authentication: Basic login/logout flows and error handling.
-- Inventory sorting: Sort by price/name using DOM reads.
-- Performance glitch user: Adds two items (direct + detail path) robustly; asserts Remove state and badge visibility, avoiding fixed waits.
-- End‑to‑End purchase flow: Adds items, verifies totals, completes checkout.
-- Problem user visual issues: Baseline + comparison per item; functional checks for wrong assets.
+### Robust waiting strategy
+- Use locator‑scoped expectations and Playwright auto‑waiting: `await expect(locator).toBeVisible()`, `await locator.click()`
+- Avoid arbitrary `waitForTimeout`; prefer conditions like `toHaveURL`, `toHaveText`, `toBeHidden`.
 
-## Playwright config tips
-```ts
-use: {
-  headless: true,
-  viewport: { width: 1280, height: 900 },
-  deviceScaleFactor: 1,
-  trace: 'retain-on-failure',
-  video: 'retain-on-failure',
-  screenshot: 'only-on-failure',
-  // expect: { timeout: 15000 },
-  // actionTimeout: 15000,
-}
+### Price calculation
+- `utils/priceCalculator.ts` centralizes parsing and numeric math for Item total + Tax to prevent drift from UI formatting and rounding.
+
+### Problematic UI detection (problem_user)
+- Ideal long‑term approach: **visual regression testing** at the component level (e.g., per inventory card) with approved baselines and review workflow.
+- Implemented here: deterministic functional checks asserting product image `src` mapping matches expected catalog, with targeted snapshots in `tests/problem-user-ui-issues.spec.ts-snapshots/` to illustrate drift.
+
+### Handling performance_glitch_user
+- Leverage Playwright’s auto‑waiting and explicit, intention‑revealing expectations (e.g., wait for inventory grid rendered, add‑to‑cart button enabled, cart badge updated) rather than fixed sleeps. Where needed, use `await locator.first().waitFor()` with state conditions.
+
+## How to Run Specific Scenarios
+```bash
+# auth
+npx playwright test tests/authentication.spec.ts
+
+# sorting
+npx playwright test tests/inventory-sorting.spec.ts
+
+# full E2E purchase flow
+npx playwright test tests/e2e-purchase-flow.spec.ts
+
+# problematic UI
+npx playwright test tests/problem-user-ui-issues.spec.ts
+
+# performance glitch user
+npx playwright test tests/performance-glitch-user.spec.ts
 ```
 
-## CI recommendations
-- Pin viewport/DPR for consistent visuals.
-- Cache `node_modules` and Playwright browsers.
-- Run baseline creation and comparison as separate jobs, or enforce serial mode per spec to prevent races. 
+## Extending the Suite
+- Add a page: create `pages/NewPage.ts`, expose intent‑driven methods, and wire into specs
+- Add a fixture: extend `tests/fixtures/index.ts` to share stateful setup (e.g., prefilled cart)
+- Add a utility: put domain helpers into `tests/utils/` and unit test where appropriate
+- Keep specs narrative‑oriented; push mechanics into POM/fixtures/utils
+
+
+
+## Coding Standards
+- Keep selectors and flows inside POMs
+- Use fixtures for shared setup; avoid per‑test login duplication
+- Prefer resilient expectations to brittle sleeps
+- Keep tests readable and intention‑revealing; utilities for non‑UI logic
